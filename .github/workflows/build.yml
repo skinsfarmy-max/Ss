@@ -11,32 +11,35 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11' # Более стабильная версия для текущих рецептов
 
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
           pip install --upgrade pip
-          pip install Cython==0.29.33 buildozer
+          pip install "Cython<3.0" # Важно! Новая версия Cython часто ломает Kivy
+          pip install buildozer
 
-      - name: Build APK with Buildozer
+      - name: Debug and Build
         run: |
-          # 1. Инициализация если нет конфига
+          # Показываем список файлов (проверка, что main.py на месте)
+          echo "--- Список файлов в репозитории: ---"
+          ls -R
+          
+          # Если файла buildozer.spec нет, создаем его
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
           
-          # 2. ЖЕСТКАЯ КОРРЕКТИРОВКА КОНФИГА (Исправляет ошибку 100)
-          # Принимаем лицензии
+          # Тюнинг конфига
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
-          # Указываем правильную архитектуру (многие ошибки 100 из-за попытки собрать под всё сразу)
           sed -i 's/android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a/' buildozer.spec
-          # Указываем минимальную версию API
-          sed -i 's/# android.minapi = 21/android.minapi = 21/' buildozer.spec
           
-          # 3. Запуск сборки
+          # Запуск сборки с игнорированием ошибок Cython
+          export APP_ANDROID_ACCEPT_SDK_LICENSE=1
           buildozer -v android debug
+        continue-on-error: false
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
